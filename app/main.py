@@ -1,6 +1,15 @@
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from app.database import create_database, engine
+from sqlmodel import Session
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    create_database()
+    yield 
+
+app = FastAPI(lifespan=lifespan)
 
 @app.get('/health')
 def get_health():

@@ -1,18 +1,20 @@
 from sqlmodel import Field, SQLModel
+from sqlalchemy import UniqueConstraint
 from enum import StrEnum
 from datetime import datetime
 
 class Currency(StrEnum):
-    euro = 'eur'
+    eur = 'eur'
     usd = 'usd'
 
 class Status(StrEnum):
     not_started = 'not_started'
     waiting_for_game = 'waiting_for_game'
     completed = 'completed'
-    waiting_for_payout = 'waiting_for_payout'
+    waiting_for_payment = 'waiting_for_payment'
 
 class Source(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("name"),)
     id: int | None = Field(default=None, primary_key=True)
     name: str
     website: str | None = None
