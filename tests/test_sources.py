@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from app.models import Currency
 
 def test_create_source_with_only_name_returns_201_and_optionals_are_none(client: TestClient):
     response = client.post('/sources', json={'name': 'test1'})
@@ -10,4 +11,49 @@ def test_create_source_with_only_name_returns_201_and_optionals_are_none(client:
     assert body['website'] is None
     assert body['default_pay_cents'] is None
     assert body['default_currency'] is None
+
+def test_source_with_all_fields_filled(client: TestClient):
+    test_source = client.post('/sources', json={'name': 'test',
+                                               'website': 'test.com',
+                                               'default_pay_cents': 100,
+                                               'default_currency': Currency.eur})
+
+    assert test_source.status_code == 201
+    body = test_source.json()
+    assert body['name'] == 'test'
+    assert body['website'] == 'test.com'
+    assert body['default_pay_cents'] == 100
+    assert body['default_currency'] == Currency.eur
+
+def test_source_with_invalid_currency(client: TestClient):
+    test_source1 = client.post('/sources', json={'name': 'test1','default_currency': 'gbp'})
+    assert test_source1.status_code == 422
+
+def test_duplicate_name_sources_first_return_201_second_409(client: TestClient):
+    test_source1 = client.post('/sources', json={'name': 'test1'})
+    assert test_source1.status_code == 201
+
+    test_source2 = client.post('/sources', json={'name': 'test1'})
+    assert test_source2.status_code == 409
+
+def test_source_with_negative_pay(client: TestClient):
+    test_source = client.post('/sources', json={'name': 'test', 'default_pay_cents': -1})
+    assert test_source.status_code == 422
+
+def test_source_with_free_pay(client: TestClient):
+    test_source = client.post('/sources', json={'name': 'test', 'default_pay_cents': 0})
+    assert test_source.status_code == 201
+
+def test_source_with_empty_name(client: TestClient):
+    test_source = client.post('/sources', json={'name': ''})
+    assert test_source.status_code == 422
+
+def test_source_with_name_only_being_whitespace(client: TestClient):
+    test_source = client.post('/sources', json={'name': '  '})
+    assert test_source.status_code == 422
+
+def test_if_source_with_whitespace_before_and_after_is_stripped(client: TestClient):
+    test_source = client.post('/sources', json={'name': '  test1   '})
+    assert test_source.status_code == 201
+    assert test_source.json()['name'] == 'test1'
 

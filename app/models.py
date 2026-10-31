@@ -2,6 +2,8 @@ from sqlmodel import Field, SQLModel
 from sqlalchemy import UniqueConstraint
 from enum import StrEnum
 from datetime import datetime,timezone
+from pydantic import StringConstraints
+from typing import Annotated
 
 class Currency(StrEnum):
     eur = 'eur'
@@ -31,4 +33,19 @@ class Playtest(SQLModel, table=True):
     currency: Currency
     status: Status
     created_date: datetime = Field(default_factory=lambda : datetime.now(timezone.utc))
+
+
+
+class SourceCreate(SQLModel):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    website: str | None = None
+    default_pay_cents: int | None = Field(default=None, ge=0)
+    default_currency: Currency | None = None
+
+class SourceRead(SQLModel):
+    id: int
+    name: str
+    website: str | None = None
+    default_pay_cents: int | None = None
+    default_currency: Currency | None = None
 
