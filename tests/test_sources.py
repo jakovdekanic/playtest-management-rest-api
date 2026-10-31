@@ -57,3 +57,22 @@ def test_if_source_with_whitespace_before_and_after_is_stripped(client: TestClie
     assert test_source.status_code == 201
     assert test_source.json()['name'] == 'test1'
 
+def test_get_a_valid_source(client: TestClient):
+    test_source = client.post('/sources', json={'name': 'test',
+                                               'website': 'test.com',
+                                               'default_pay_cents': 100,
+                                               'default_currency': Currency.eur})
+
+    source_return = client.get(f'/sources/{test_source.json()['id']}')
+
+    assert source_return.status_code == 200
+    body = source_return.json()
+    assert body['name'] == 'test'
+    assert body['website'] == 'test.com'
+    assert body['default_pay_cents'] == 100
+    assert body['default_currency'] == Currency.eur
+
+def test_get_with_id_that_does_not_exist(client: TestClient):
+    source_return = client.get('/sources/999')
+    assert source_return.status_code == 404
+    assert source_return.json()['detail'] == 'Source with that id does not exist.'

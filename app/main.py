@@ -28,3 +28,12 @@ def create_source(body: SourceCreate, session: Session = Depends(get_session)):
         raise HTTPException(status_code=409, detail='A source with that name already exists.')
     session.refresh(source)
     return source
+
+@app.get('/sources/{source_id}', status_code=200, response_model=SourceRead)
+def get_source(source_id : int, session: Session = Depends(get_session)):
+    received_source = session.get(Source, source_id)
+    if received_source is None: 
+        raise HTTPException(status_code=404, detail='Source with that id does not exist.')
+
+    return received_source
+    
