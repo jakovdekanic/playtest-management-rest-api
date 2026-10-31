@@ -4,7 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from datetime import datetime,timezone
 import pytest
 
-def test_create_source(session: Session):
+def test_create_source_and_playtest(session: Session):
 
     wildduckdev = Source(name="WildDuckDev", website="https://wildduckdev.github.io", default_pay_cents=2000,default_currency=Currency.eur)
     session.add(wildduckdev)
@@ -15,9 +15,7 @@ def test_create_source(session: Session):
                              game_link="game.com",
                              pay_cents=2000,
                              currency=Currency.eur,
-                             status=Status.not_started,
-                             created_date=datetime.now(timezone.utc)
-                             )
+                             status=Status.not_started)
     session.add(playtest_test)
     session.commit()
 
@@ -53,12 +51,11 @@ def test_playtest_created_date_defaults_to_now(session: Session):
     session.add(test_playtest)
     session.commit()
 
-    source_return = session.get(Source, test_source.id)
     playtest_return = session.get(Playtest, test_playtest.id)
 
+    assert playtest_return.created_date is not None
     assert playtest_return.created_date >= before_time
     assert playtest_return.created_date <= after_time
-    assert playtest_return.created_date is not None
 
 def test_playtest_requires_existing_source(session: Session):
     test_playtest = Playtest(source_id=999,
@@ -72,7 +69,7 @@ def test_playtest_requires_existing_source(session: Session):
     with pytest.raises(IntegrityError):
         session.commit()
 
-def test_non_unique_source_name(session: Session):
+def test_source_name_must_be_unique(session: Session):
     test_source1= Source(name='source')
     session.add(test_source1)
     session.commit()
