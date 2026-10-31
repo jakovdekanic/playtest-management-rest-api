@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from contextlib import asynccontextmanager
 from app.database import create_database, get_session
 from sqlmodel import Session,select
-from app.models import SourceRead, SourceCreate, Source
+from app.models import SourceRead, SourceCreate, Source, SourceUpdate
 from sqlalchemy.exc import IntegrityError
 
 
@@ -40,3 +40,17 @@ def get_source(source_id : int, session: Session = Depends(get_session)):
 @app.get('/sources', status_code=200, response_model=list[SourceRead])
 def list_sources(session: Session = Depends(get_session)):
     return session.exec(select(Source).order_by(Source.id)).all()
+
+@app.patch('/sources/{source_id}', status_code=200, response_model=SourceRead)
+def update_source(source_id: int, body: SourceUpdate, session: Session = Depends(get_session)):
+    old_source = session.get(Source, source_id)
+    if old_source is None:
+        raise HTTPException(status_code=404, detail='Source with that id does not exist.')
+
+
+    source_data = body.model_dump(exclude_unset=True)
+    old_source.sqlmodel_update(source_data)
+    session.add(old_source)
+    session.commit()
+    session.refresh(old_source)
+    return old_source

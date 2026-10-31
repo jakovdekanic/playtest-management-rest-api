@@ -49,3 +49,9 @@ class SourceRead(SQLModel):
     default_pay_cents: int | None = None
     default_currency: Currency | None = None
 
+class SourceUpdate(SQLModel):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] = None
+    website: str | None = None
+    default_pay_cents: int | None = Field(default=None, ge=0)
+    default_currency: Currency | None = None
+
