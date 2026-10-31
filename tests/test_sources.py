@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
-from app.models import Currency
+from app.models import Currency, Source
+from sqlmodel import select
 
 def test_create_source_with_only_name_returns_201_and_optionals_are_none(client: TestClient):
     response = client.post('/sources', json={'name': 'test1'})
@@ -76,3 +77,23 @@ def test_get_with_id_that_does_not_exist(client: TestClient):
     source_return = client.get('/sources/999')
     assert source_return.status_code == 404
     assert source_return.json()['detail'] == 'Source with that id does not exist.'
+
+
+def test_get_empty_database_returns_200_and_empty_list(client: TestClient):
+    response = client.get('/sources')
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+def test_create_two_sources_get_them_and_check_if_both_are_there(client: TestClient):
+    test_source1 = client.post('/sources', json={'name': 'test1'})
+    test_source2 = client.post('/sources', json={'name': 'test2'})
+
+    assert test_source1.status_code == 201
+    assert test_source2.status_code == 201
+    response = client.get('/sources')
+
+    assert response.status_code == 200
+    assert len(response.json()) == 2
+    assert response.json()[1]['name'] == 'test2'
+    assert response.json()[0]['name'] == 'test1'
