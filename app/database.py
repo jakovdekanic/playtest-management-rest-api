@@ -14,14 +14,9 @@ engine = create_engine(sqlite_url, connect_args=connect_args)
 
 @event.listens_for(Engine, "connect")
 def set_pragma(dbapi_connection, connection_record):
-    #ac = dbapi_connection.autocommit
-    #dbapi_connection.autocommit = True
-
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
-
-    #dbapi_connection.autocommit = ac
 
 def get_session():
     with Session(engine) as session:

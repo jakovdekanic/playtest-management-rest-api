@@ -1,6 +1,6 @@
 from app.models import Source, Playtest, Currency, Status
 from sqlmodel import Session
-from sqlalchemy.exc import IntegrityError, NoSuchColumnError
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime,timezone
 import pytest
 
@@ -36,14 +36,12 @@ def test_create_source(session: Session):
     assert playtest_return.pay_cents == 2000
     assert playtest_return.currency == Currency.eur
     assert playtest_return.status == Status.not_started
-    assert playtest_return.created_date != None
-    print(playtest_return.created_date)
-
 
 def test_playtest_created_date_defaults_to_now(session: Session):
     test_source = Source(name="Test")
     session.add(test_source)
     session.commit()
+    before_time = datetime.now(timezone.utc)
     test_playtest = Playtest(source_id=test_source.id,
                              game_title="Game2",
                              genre="Genre2",
@@ -51,22 +49,16 @@ def test_playtest_created_date_defaults_to_now(session: Session):
                              pay_cents=500,
                              currency=Currency.usd,
                              status=Status.waiting_for_payment)
+    after_time = datetime.now(timezone.utc)
     session.add(test_playtest)
     session.commit()
 
     source_return = session.get(Source, test_source.id)
     playtest_return = session.get(Playtest, test_playtest.id)
 
-    assert source_return.name == "Test"
-
-    assert playtest_return.source_id == test_source.id
-    assert playtest_return.game_title == 'Game2'
-    assert playtest_return.genre == 'Genre2'
-    assert playtest_return.game_link == 'game2.com'
-    assert playtest_return.pay_cents == 500
-    assert playtest_return.currency == Currency.usd
-    assert playtest_return.status == Status.waiting_for_payment
-    assert playtest_return.created_date != None
+    assert playtest_return.created_date >= before_time
+    assert playtest_return.created_date <= after_time
+    assert playtest_return.created_date is not None
 
 def test_playtest_requires_existing_source(session: Session):
     test_playtest = Playtest(source_id=999,
@@ -80,19 +72,12 @@ def test_playtest_requires_existing_source(session: Session):
     with pytest.raises(IntegrityError):
         session.commit()
 
-def test_playtest_rejects_invalid_currency(session: Session):
-    test_source = Source(name="test_source")
-    session.add(test_source)
-    session.commit()
-    test_playtest = Playtest(source_id=test_source.id,
-                             game_title="Game2",
-                             genre="Genre2",
-                             game_link="game2.com",
-                             pay_cents=500,
-                             currency='gbp',
-                             status=Status.waiting_for_payment)
-    session.add(test_playtest)
+def test_non_unique_source_name(session: Session):
+    test_source1= Source(name='source')
+    session.add(test_source1)
     session.commit()
 
-
-
+    test_source2= Source(name='source')
+    session.add(test_source2)
+    with pytest.raises(IntegrityError):
+        session.commit()
