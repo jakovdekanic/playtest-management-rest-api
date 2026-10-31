@@ -1,7 +1,7 @@
 from sqlmodel import Field, SQLModel
 from sqlalchemy import UniqueConstraint
 from enum import StrEnum
-from datetime import datetime
+from datetime import datetime,timezone
 
 class Currency(StrEnum):
     eur = 'eur'
