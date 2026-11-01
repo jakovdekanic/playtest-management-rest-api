@@ -110,12 +110,11 @@ def helper_create_dummy_source(client: TestClient):
                                                 'default_pay_cents': 100,
                                                 'default_currency': 'eur'})
     assert test_source.status_code == 201
-    return test_source
+    return test_source.json()
  
 
 def test_patch_name_only_changes_name_and_keeps_other_fields(client: TestClient):
-    test_source = helper_create_dummy_source(client)
-    created = test_source.json()
+    created = helper_create_dummy_source(client)
     source_id = created['id']
 
     test_patch = client.patch(f'/sources/{source_id}', json={'name': 'update_name'})
@@ -128,8 +127,7 @@ def test_patch_name_only_changes_name_and_keeps_other_fields(client: TestClient)
     assert body['default_currency'] == created['default_currency']
 
 def test_patch_pay_only_changes_pay_and_keeps_name(client: TestClient):
-    test_source = helper_create_dummy_source(client)
-    created = test_source.json()
+    created = helper_create_dummy_source(client)
     source_id = created['id']
 
     test_patch = client.patch(f'/sources/{source_id}', json={'default_pay_cents': 150})
@@ -142,22 +140,20 @@ def test_patch_pay_only_changes_pay_and_keeps_name(client: TestClient):
     assert body['default_currency'] == created['default_currency']
 
 def test_patch_website_and_currency_together(client: TestClient):
-    test_source = helper_create_dummy_source(client)
-    created = test_source.json()
+    created = helper_create_dummy_source(client)
     source_id = created['id']
 
-    test_patch = client.patch(f'/sources/{source_id}', json={'default_currency': 'eur', 'website': 'test2.com'})
+    test_patch = client.patch(f'/sources/{source_id}', json={'default_currency': 'usd', 'website': 'test2.com'})
 
     body = test_patch.json()
     assert test_patch.status_code == 200
     assert body['name'] == created['name']
     assert body['website'] == 'test2.com'
     assert body['default_pay_cents'] == created['default_pay_cents']
-    assert body['default_currency'] == 'eur'
+    assert body['default_currency'] == 'usd'
 
 def test_patch_pay_to_zero_is_allowed(client: TestClient):
-    test_source = helper_create_dummy_source(client)
-    created = test_source.json()
+    created = helper_create_dummy_source(client)
     source_id = created['id']
 
     test_patch = client.patch(f'/sources/{source_id}', json={'default_pay_cents': 0})
@@ -170,8 +166,7 @@ def test_patch_pay_to_zero_is_allowed(client: TestClient):
     assert body['default_currency'] == created['default_currency']
 
 def test_patch_empty_body_returns_200_and_changes_nothing(client: TestClient):
-    test_source = helper_create_dummy_source(client)
-    created = test_source.json()
+    created = helper_create_dummy_source(client)
     source_id = created['id']
 
     test_patch = client.patch(f'/sources/{source_id}', json={})
@@ -182,6 +177,167 @@ def test_patch_empty_body_returns_200_and_changes_nothing(client: TestClient):
     assert body['website'] == created['website']
     assert body['default_pay_cents'] == created['default_pay_cents']
     assert body['default_currency'] == created['default_currency']
+
+def test_patch_name_is_stripped(client: TestClient):
+    created = helper_create_dummy_source(client)
+    source_id = created['id']
+
+    test_patch = client.patch(f'/sources/{source_id}', json={'name': '    new    '})
+
+    body = test_patch.json()
+    assert test_patch.status_code == 200
+    assert body['name'] == 'new'
+    assert body['website'] == created['website']
+    assert body['default_pay_cents'] == created['default_pay_cents']
+    assert body['default_currency'] == created['default_currency']
+
+def test_patch_is_persisted(client: TestClient):
+    created = helper_create_dummy_source(client)
+    source_id = created['id']
+
+    test_patch = client.patch(f'/sources/{source_id}', json={'name': 'new'})
+
+    assert test_patch.status_code == 200
+    test_get = client.get(f'/sources/{source_id}')
+
+    body = test_get.json()
+    assert test_get.status_code == 200
+    assert body['name'] == 'new'
+    assert body['website'] == created['website']
+    assert body['default_pay_cents'] == created['default_pay_cents']
+    assert body['default_currency'] == created['default_currency']
+
+def test_patch_to_own_current_name_returns_200(client: TestClient):
+    created = helper_create_dummy_source(client)
+    source_id = created['id']
+
+    test_patch = client.patch(f'/sources/{source_id}', json={'name': created['name']})
+
+    body = test_patch.json()
+    assert test_patch.status_code == 200
+    assert body['name'] == created['name']
+    assert body['website'] == created['website']
+    assert body['default_pay_cents'] == created['default_pay_cents']
+    assert body['default_currency'] == created['default_currency']
+
+def test_patch_null_clears_default_pay_cents(client: TestClient):
+    created = helper_create_dummy_source(client)
+    source_id = created['id']
+
+    test_patch = client.patch(f'/sources/{source_id}', json={'default_pay_cents': None})
+
+    body = test_patch.json()
+    assert test_patch.status_code == 200
+    assert body['name'] == created['name']
+    assert body['website'] == created['website']
+    assert body['default_pay_cents'] is None
+    assert body['default_currency'] == created['default_currency']
+
+def test_patch_null_clears_website(client: TestClient):
+    created = helper_create_dummy_source(client)
+    source_id = created['id']
+
+    test_patch = client.patch(f'/sources/{source_id}', json={'website': None})
+
+    body = test_patch.json()
+    assert test_patch.status_code == 200
+    assert body['name'] == created['name']
+    assert body['website'] is None
+    assert body['default_pay_cents'] == created['default_pay_cents']
+    assert body['default_currency'] == created['default_currency']
+
+def test_patch_null_clears_default_currency(client: TestClient):
+    created = helper_create_dummy_source(client)
+    source_id = created['id']
+
+    test_patch = client.patch(f'/sources/{source_id}', json={'default_currency': None})
+
+    body = test_patch.json()
+    assert test_patch.status_code == 200
+    assert body['name'] == created['name']
+    assert body['website'] == created['website']
+    assert body['default_pay_cents'] == created['default_pay_cents']
+    assert body['default_currency'] is None
+
+def test_patch_missing_id_returns_404_with_detail(client: TestClient):
+    test_patch = client.patch('/sources/999', json={'default_currency': None})
+
+    assert test_patch.status_code == 404
+    assert test_patch.json()['detail'] == 'Source with that id does not exist.'
+
+def test_patch_to_existing_name_returns_409(client: TestClient):
+    created = helper_create_dummy_source(client)
+    test_source = client.post('/sources', json={'name': 'test2'})
+    assert test_source.status_code == 201
+    created2 = test_source.json()
+
+    source_id = created2['id']
+    test_patch = client.patch(f'/sources/{source_id}', json={'name': created['name']})
+
+    assert test_patch.status_code == 409
+
+    get_source2 = client.get(f'/sources/{source_id}')
+    assert get_source2.status_code == 200
+    assert get_source2.json()['name'] == created2['name']
+
+def test_patch_name_null_returns_422(client: TestClient):
+    created = helper_create_dummy_source(client)
+    source_id = created['id']
+
+    test_patch = client.patch(f'/sources/{source_id}', json={'name': None})
+    assert test_patch.status_code == 422
+
+    source_get = client.get(f'/sources/{source_id}')
+    assert source_get.status_code == 200
+    assert created['name'] == source_get.json()['name']
+
+def test_patch_blank_name_without_whitespace_returns_422(client: TestClient):
+    created = helper_create_dummy_source(client)
+    source_id = created['id']
+
+    test_patch = client.patch(f'/sources/{source_id}', json={'name': ''})
+    assert test_patch.status_code == 422
+
+    source_get = client.get(f'/sources/{source_id}')
+    assert source_get.status_code == 200
+    assert created['name'] == source_get.json()['name']
+
+def test_patch_blank_name_with_whitespace_returns_422(client: TestClient):
+    created = helper_create_dummy_source(client)
+    source_id = created['id']
+
+    test_patch = client.patch(f'/sources/{source_id}', json={'name': '    '})
+    assert test_patch.status_code == 422
+
+    source_get = client.get(f'/sources/{source_id}')
+    assert source_get.status_code == 200
+    assert created['name'] == source_get.json()['name']
+
+
+def test_patch_negative_pay_returns_422(client: TestClient):
+    created = helper_create_dummy_source(client)
+    source_id = created['id']
+
+    test_patch = client.patch(f'/sources/{source_id}', json={'default_pay_cents': -1})
+    assert test_patch.status_code == 422
+ 
+    source_get = client.get(f'/sources/{source_id}')
+    assert source_get.status_code == 200
+    assert created['default_pay_cents'] == source_get.json()['default_pay_cents']
+
+   
+
+def test_patch_invalid_currency_returns_422(client: TestClient):
+    created = helper_create_dummy_source(client)
+    source_id = created['id']
+
+    test_patch = client.patch(f'/sources/{source_id}', json={'default_currency': 'gbp'})
+    assert test_patch.status_code == 422
+
+    source_get = client.get(f'/sources/{source_id}')
+    assert source_get.status_code == 200
+    assert created['default_currency'] == source_get.json()['default_currency']
+
 
 
 

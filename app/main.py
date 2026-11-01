@@ -51,6 +51,10 @@ def update_source(source_id: int, body: SourceUpdate, session: Session = Depends
     source_data = body.model_dump(exclude_unset=True)
     old_source.sqlmodel_update(source_data)
     session.add(old_source)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status_code=409, detail='A source with that name already exists.')
     session.refresh(old_source)
     return old_source
