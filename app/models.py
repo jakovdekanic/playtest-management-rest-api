@@ -55,3 +55,24 @@ class SourceUpdate(SQLModel):
     default_pay_cents: int | None = Field(default=None, ge=0)
     default_currency: Currency | None = None
 
+class PlaytestCreate(SQLModel):
+    source_id: int
+    game_title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    genre: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    game_link: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    pay_cents: int | None = Field(default=None, ge=0)
+    currency: Currency | None = None
+    status: Status = Status.not_started
+
+class PlaytestRead(SQLModel):
+    id: int
+    source_id: int
+    game_title: str
+    genre: str
+    game_link: str
+    pay_cents: int
+    currency: Currency
+    status: Status
+    created_date: datetime
+
+
