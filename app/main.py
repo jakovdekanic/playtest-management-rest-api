@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from contextlib import asynccontextmanager
 from app.database import create_database, get_session
 from sqlmodel import Session,select
-from app.models import SourceRead, SourceCreate, Source, SourceUpdate, PlaytestCreate, PlaytestRead, Playtest
+from app.models import SourceRead, SourceCreate, Source, SourceUpdate, PlaytestCreate, PlaytestRead, Playtest, Currency
 from sqlalchemy.exc import IntegrityError
 
 
@@ -62,10 +62,9 @@ def update_source(source_id: int, body: SourceUpdate, session: Session = Depends
 @app.post('/playtests', status_code=201, response_model=PlaytestRead)
 def create_playtest(body: PlaytestCreate, session: Session = Depends(get_session)):
     body_dump = body.model_dump()
-    try: 
-        source = session.get(Source, body_dump['source_id'])
-    except IntegrityError:
-        raise HTTPException(status_code=422, detail=f"A source with id:{source.id} does not exist.")
+    source = session.get(Source, body_dump['source_id'])
+    if source is None:
+        raise HTTPException(status_code=422, detail=f"A source with id:{body_dump['source_id']} does not exist.")
     if(body_dump['currency'] is None):
         if(source.default_currency is None):
             body_dump['currency'] = Currency.eur
@@ -91,3 +90,7 @@ def get_playtest(playtest_id: int, session: Session = Depends(get_session)):
         raise HTTPException(status_code=404, detail='Playtest with that id does not exist.')
 
     return received_playtest
+
+@app.get('/playtests', status_code=200, response_model=list[PlaytestRead])
+def list_playtests(session: Session = Depends(get_session)):
+    return session.exec(select(Playtest).order_by(Playtest.id)).all()
