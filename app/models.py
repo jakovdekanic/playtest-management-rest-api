@@ -75,4 +75,12 @@ class PlaytestRead(SQLModel):
     status: Status
     created_date: datetime
 
+class PlaytestUpdate(SQLModel):
+    source_id: int = None
+    game_title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] = None
+    genre: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] = None
+    game_link: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] = None
+    pay_cents: int = Field(default=None, ge=0)
+    currency: Currency = None
+    status: Status = None
 

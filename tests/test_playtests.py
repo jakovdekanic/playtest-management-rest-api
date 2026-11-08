@@ -1,11 +1,12 @@
 from fastapi.testclient import TestClient
 from app.models import Currency, Status
 from datetime import datetime, timezone, timedelta
+import pytest
 
 # helper source
 
 def helper_source_empty(client: TestClient):
-    helper_source = client.post('/sources', json={'name': 'source'})
+    helper_source = client.post('/sources', json={'name': 'source2'})
 
     assert helper_source.status_code == 201
     return helper_source.json()
@@ -73,7 +74,7 @@ def test_nonexistent_source_id_returns_422(client: TestClient):
     test_playtest = client.post('/playtests', json=payload)
 
     assert test_playtest.status_code == 422
-    assert test_playtest.json()['detail'] == f"A source with id:{payload['source_id']} does not exist."
+    assert test_playtest.json()['detail'] == f"A source with id: {payload['source_id']} does not exist."
 
     response = client.get('/playtests')
     assert response.status_code == 200
@@ -477,3 +478,306 @@ def test_non_integer_pay_returns_422(client: TestClient):
     response = client.get('/playtests')
     assert response.status_code == 200
     assert len(response.json()) == 0
+
+
+
+# DELETE-TESTS
+
+def helper_playtest(client: TestClient,
+                                test_source_id,
+                                title = 'game', 
+                                genre = 'genre',
+                                game_link = 'game_link',
+                                pay_cents = 100,
+                                currency = Currency.eur,
+                                status = Status.not_started):
+    
+    payload = {'game_title': title,
+               'genre': genre,
+               'game_link': game_link,
+               'pay_cents': pay_cents,
+               'currency': currency,
+               'status': status,
+               'source_id': test_source_id}
+
+    test_playtest = client.post('/playtests', json=payload) 
+    assert test_playtest.status_code == 201
+    return test_playtest.json()
+
+def test_deleting_an_existing_playtest_returns_204_and_the_response_body_is_empty(client: TestClient):
+    test_source = helper_source_filled(client)
+    test_playtest = helper_playtest(client, test_source['id'])
+
+    response = client.delete(f'/playtests/{test_playtest['id']}')
+    assert response.status_code == 204
+    assert response.text == ''
+
+    response2 = client.get(f'/playtests/{test_playtest['id']}')
+    assert response2.status_code == 404
+
+def test_delete_nonexistent_playtest_returns_404_with_detail(client: TestClient):
+    response = client.delete('/playtests/999')
+
+    assert response.status_code == 404
+    assert response.json()['detail'] == 'Playtest with that id does not exist.'
+
+def test_two_deletes_on_the_same_playtest_first_returns_204_second_returns_404(client: TestClient):
+    test_source = helper_source_filled(client)
+    test_playtest = helper_playtest(client, test_source['id'])
+
+    response = client.delete(f'/playtests/{test_playtest['id']}')
+    assert response.status_code == 204
+
+    response = client.delete(f'/playtests/{test_playtest['id']}')
+    assert response.status_code == 404
+    assert response.json()['detail'] == 'Playtest with that id does not exist.'
+
+def test_delete_one_of_two_playtests_deletes_only_one_and_does_not_delete_its_source(client: TestClient):
+    test_source = helper_source_filled(client)
+    test_playtest1 = helper_playtest(client, test_source['id'])
+    test_playtest2 = helper_playtest(client, test_source['id'], 'game2')
+
+    response = client.delete(f'/playtests/{test_playtest1['id']}')
+    assert response.status_code == 204
+
+    response2 = client.get('/playtests')
+    assert response2.status_code == 200
+    assert len(response2.json()) == 1
+    body = response2.json()[0]
+
+    response3 = client.get(f'/sources/{test_source['id']}')
+    assert response3.status_code == 200
+
+    assert body['id'] == test_playtest2['id']
+    assert body['game_title'] == test_playtest2['game_title']
+    assert body['genre'] == test_playtest2['genre']
+    assert body['game_link'] == test_playtest2['game_link']
+    assert body['pay_cents'] == test_playtest2['pay_cents']
+    assert body['currency'] == test_playtest2['currency']
+    assert body['status'] == test_playtest2['status']
+    assert body['source_id'] == test_playtest2['source_id']
+
+# PATCH-TESTS
+
+@pytest.mark.parametrize(
+('field', 'new_value'),
+[
+    ('game_title','game2'),
+    ('genre', 'genre2'), 
+    ('game_link', 'game2.com'),
+    ('pay_cents', 500),
+    ('currency', 'eur'),
+    ('status', 'completed')
+])
+
+
+def test_patching_one_field_changes_only_that_field(client: TestClient, field: str, new_value):
+    test_source = helper_source_filled(client)
+    test_playtest = helper_playtest(client, test_source['id'])
+
+    patched_playtest = client.patch(f'/playtests/{test_playtest['id']}', json={field: new_value})
+    assert patched_playtest.status_code == 200
+    body = patched_playtest.json()
+    for key, original_value in test_playtest.items():
+        if key in ('id', 'created_date'):
+            continue
+        if key == field:
+            assert body[key] == new_value
+        else:
+            assert body[key] == original_value
+    response = client.get(f'/playtests/{test_playtest['id']}')
+    assert response.status_code == 200
+    response_body = response.json()
+    for key, original_value in test_playtest.items():
+        if key in ('id', 'created_date'):
+            continue
+        if key == field:
+            assert response_body[key] == new_value
+        else:
+            assert response_body[key] == original_value
+
+def test_patching_new_source_id_changes_only_source_id(client: TestClient):
+    test_source = helper_source_filled(client)
+    test_source2 = helper_source_empty(client)
+    test_playtest = helper_playtest(client, test_source['id'])
+
+    patched_playtest = client.patch(f'/playtests/{test_playtest['id']}', json={'source_id': test_source2['id']})
+    assert patched_playtest.status_code == 200
+    body = patched_playtest.json()
+    for key, original_value in test_playtest.items():
+        if(key not in ('source_id','id')):
+            assert body[key] == original_value
+        else:
+            assert body['source_id'] == test_source2['id']
+
+    response = client.get(f'/playtests/{test_playtest['id']}')
+    assert response.status_code == 200
+    response_bod = response.json()
+    for key, original_value in test_playtest.items():
+        if(key not in ('source_id', 'id')):
+            assert response_bod[key] == original_value
+        else:
+            assert response_bod['source_id'] == test_source2['id']
+
+def test_updating_multiple_fields_returns_200_and_changes_only_those_fields(client: TestClient):
+    test_source = helper_source_filled(client)
+    test_playtest = helper_playtest(client, test_source['id'])
+
+    patched_playtest = client.patch(f'/playtests/{test_playtest['id']}', json={'game_title': 'game2', 'game_link': 'game2.com', 'pay_cents': 50})
+    assert patched_playtest.status_code == 200
+
+    body = patched_playtest.json()
+    assert body['game_title'] == 'game2'
+    assert body['genre'] == test_playtest['genre']
+    assert body['game_link'] == 'game2.com'
+    assert body['pay_cents'] == 50
+    assert body['currency'] == test_playtest['currency']
+    assert body['status'] == test_playtest['status']
+
+    response = client.get(f'/playtests/{test_playtest['id']}')
+    assert response.status_code == 200
+    response_body = response.json()
+    assert response_body['game_title'] == 'game2'
+    assert response_body['genre'] == test_playtest['genre']
+    assert response_body['game_link'] == 'game2.com'
+    assert response_body['pay_cents'] == 50
+    assert response_body['currency'] == test_playtest['currency']
+    assert response_body['status'] == test_playtest['status']
+
+
+def test_empty_body_returns_200_and_changes_nothing(client: TestClient):
+    test_source = helper_source_filled(client)
+    test_playtest = helper_playtest(client, test_source['id'])
+
+    patched_playtest = client.patch(f'/playtests/{test_playtest['id']}', json={})
+    assert patched_playtest.status_code == 200
+    body = patched_playtest.json()
+    for key, original_value in test_playtest.items():
+        assert body[key] == original_value
+
+    response = client.get(f'/playtests/{test_playtest['id']}')
+    assert response.status_code == 200
+    response_body = response.json()
+    for key, original_value in test_playtest.items():
+        assert response_body[key] == original_value
+
+def test_nonexistent_playtest_returns_404_with_detail(client: TestClient):
+    response = client.patch('/playtests/999', json={})
+    assert response.status_code == 404
+    assert response.json()['detail'] == 'Playtest with that id does not exist.'
+
+def test_patching_nonexistent_source_id_returns_422_with_detail(client: TestClient):
+    test_source = helper_source_filled(client)
+    test_playtest = helper_playtest(client, test_source['id'])
+
+    response = client.patch(f'/playtests/{test_playtest['id']}', json={'source_id': 999})
+    assert response.status_code == 422
+    assert response.json()['detail'] == 'Source with id: 999 does not exist.'
+
+    playtest_return = client.get(f'/playtests/{test_playtest['id']}')
+    assert playtest_return.status_code == 200
+    playtest_bod = playtest_return.json()
+    for key, original_value in test_playtest.items():
+        if(key in ('id')):
+            continue
+        else:
+            assert playtest_bod[key] == original_value
+
+
+@pytest.mark.parametrize(
+    ('field','new_value'),
+    [
+        ('source_id', None),
+        ('pay_cents', None),
+        ('currency', None),
+        ('status', None),
+        ('game_title', None)
+    ]
+)
+
+def test_null_on_any_field_returns_422_and_the_playtest_is_unchanged(client: TestClient, field: str, new_value):
+    test_source = helper_source_filled(client)
+    test_playtest = helper_playtest(client, test_source['id'])
+
+    response = client.patch(f'/playtests/{test_playtest['id']}', json={
+        field: new_value
+    })
+    assert response.status_code == 422
+
+    assert response.json()['detail'][0]['loc'] == ['body', field]
+    playtest_return = client.get(f'/playtests/{test_playtest['id']}')
+    assert playtest_return.status_code == 200
+    for key, original_value in test_playtest.items():
+        if(key in ('id')):
+            continue
+        else:
+            assert playtest_return.json()[key] == original_value
+
+@pytest.mark.parametrize(
+    ('field', 'new_value'),
+    [
+    ('pay_cents', -1),
+    ('currency', 'gbp'),
+    ('status', 'created'),
+    ('game_title', ' '),
+    ('game_title', ''),
+    ('genre', ' '),
+    ('genre', ''),
+    ('game_link', ' '),
+    ('game_link', ''),
+    ('source_id', 'test')
+]
+)
+def test_patching_negative_pay_returns_422(client: TestClient, field: str, new_value):
+    test_source = helper_source_filled(client)
+    test_playtest = helper_playtest(client, test_source['id'])
+
+    playtest_patched = client.patch(f'/playtests/{test_playtest['id']}', json={field: new_value})
+    assert playtest_patched.status_code == 422
+    playtest_return = client.get(f'/playtests/{test_playtest['id']}')
+    assert playtest_return.status_code == 200
+    body = playtest_return.json()
+    for key, original_value in test_playtest.items():
+        if(key not in ('id', )):
+            assert body[key] == original_value
+
+    response = client.get(f'/playtests/{test_playtest['id']}')
+    assert response.status_code == 200
+    response_body = response.json()
+    for key, original_value in test_playtest.items():
+        if(key not in ('id', )):
+            assert response_body[key] == original_value
+
+def test_patched_strings_are_stripped(client: TestClient):
+    test_source = helper_source_filled(client)
+    test_playtest = helper_playtest(client, test_source['id'])
+
+    playtest_patched = client.patch(f'/playtests/{test_playtest['id']}', json={'game_title': '  game2  '})
+    assert playtest_patched.status_code == 200
+    assert playtest_patched.json()['game_title'] == 'game2'
+
+def test_patch_id_and_created_date_are_ignored(client: TestClient):
+    test_source = helper_source_filled(client)
+    test_playtest = helper_playtest(client, test_source['id'])
+
+    playtest_patched = client.patch(f'/playtests/{test_playtest['id']}', json={'id': 22,'created_date': datetime.strptime("2000-12-02",'%Y-%m-%d').isoformat()})
+    assert playtest_patched.status_code == 200
+    assert playtest_patched.json()['id'] == test_playtest['id']
+    assert datetime.fromisoformat(playtest_patched.json()['created_date']).year != 2000
+
+    response = client.get(f'/playtests/{test_playtest['id']}')
+    assert response.status_code == 200
+    response_body = response.json()
+    assert response_body['id'] == test_playtest['id']
+    assert datetime.fromisoformat(response_body['created_date']).year != 2000
+
+def test_patch_pay_cents_0_returns_200(client: TestClient):
+    test_source = helper_source_filled(client)
+    test_playtest = helper_playtest(client, test_source['id'])
+
+    playtest_patched = client.patch(f'/playtests/{test_playtest['id']}', json={'pay_cents': 0})
+    assert playtest_patched.status_code == 200
+
+    response = client.get(f'/playtests/{test_playtest['id']}')
+    assert response.status_code == 200
+    assert response.json()['pay_cents'] == 0

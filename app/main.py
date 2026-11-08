@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from contextlib import asynccontextmanager
 from app.database import create_database, get_session
 from sqlmodel import Session,select
-from app.models import SourceRead, SourceCreate, Source, SourceUpdate, PlaytestCreate, PlaytestRead, Playtest, Currency
+from app.models import SourceRead, SourceCreate, Source, SourceUpdate, PlaytestCreate, PlaytestRead, Playtest, Currency, PlaytestUpdate
 from sqlalchemy.exc import IntegrityError
 
 
@@ -64,7 +64,7 @@ def create_playtest(body: PlaytestCreate, session: Session = Depends(get_session
     body_dump = body.model_dump()
     source = session.get(Source, body_dump['source_id'])
     if source is None:
-        raise HTTPException(status_code=422, detail=f"A source with id:{body_dump['source_id']} does not exist.")
+        raise HTTPException(status_code=422, detail=f"A source with id: {body_dump['source_id']} does not exist.")
     if(body_dump['currency'] is None):
         if(source.default_currency is None):
             body_dump['currency'] = Currency.eur
@@ -94,3 +94,29 @@ def get_playtest(playtest_id: int, session: Session = Depends(get_session)):
 @app.get('/playtests', status_code=200, response_model=list[PlaytestRead])
 def list_playtests(session: Session = Depends(get_session)):
     return session.exec(select(Playtest).order_by(Playtest.id)).all()
+
+@app.delete('/playtests/{playtest_id}', status_code=204)
+def delete_playtest(playtest_id: int, session: Session = Depends(get_session)):
+    received_playtest = session.get(Playtest, playtest_id)
+    if received_playtest is None:
+        raise HTTPException(status_code=404, detail='Playtest with that id does not exist.')
+    session.delete(received_playtest)
+    session.commit()
+
+@app.patch('/playtests/{playtest_id}', status_code=200, response_model=PlaytestRead)
+def update_playtest(playtest_id: int, body: PlaytestUpdate, session: Session = Depends(get_session)):
+    old_playtest = session.get(Playtest, playtest_id)
+    if old_playtest is None:
+       raise HTTPException(status_code=404, detail='Playtest with that id does not exist.')
+
+    playtest_data = body.model_dump(exclude_unset=True)
+
+    old_playtest.sqlmodel_update(playtest_data)
+    session.add(old_playtest)
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status_code=422, detail=f'Source with id: {body.source_id} does not exist.')
+    session.refresh(old_playtest)
+    return old_playtest
