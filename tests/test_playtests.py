@@ -489,7 +489,7 @@ def helper_playtest(client: TestClient,
                                 genre = 'genre',
                                 game_link = 'game_link',
                                 pay_cents = 100,
-                                currency = Currency.eur,
+                                currency = Currency.usd,
                                 status = Status.not_started):
     
     payload = {'game_title': title,
@@ -678,7 +678,7 @@ def test_patching_nonexistent_source_id_returns_422_with_detail(client: TestClie
     assert playtest_return.status_code == 200
     playtest_bod = playtest_return.json()
     for key, original_value in test_playtest.items():
-        if(key in ('id')):
+        if(key in ('id',)):
             continue
         else:
             assert playtest_bod[key] == original_value
@@ -704,11 +704,12 @@ def test_null_on_any_field_returns_422_and_the_playtest_is_unchanged(client: Tes
     })
     assert response.status_code == 422
 
+    assert isinstance(response.json()['detail'], list) == True
     assert response.json()['detail'][0]['loc'] == ['body', field]
     playtest_return = client.get(f'/playtests/{test_playtest['id']}')
     assert playtest_return.status_code == 200
     for key, original_value in test_playtest.items():
-        if(key in ('id')):
+        if(key in ('id',)):
             continue
         else:
             assert playtest_return.json()[key] == original_value
@@ -728,7 +729,7 @@ def test_null_on_any_field_returns_422_and_the_playtest_is_unchanged(client: Tes
     ('source_id', 'test')
 ]
 )
-def test_patching_negative_pay_returns_422(client: TestClient, field: str, new_value):
+def test_patching_negative_pay_incorrect_currency_incorrect_status_empty_or_whitespace_string_non_integer_source_id_returns_422(client: TestClient, field: str, new_value):
     test_source = helper_source_filled(client)
     test_playtest = helper_playtest(client, test_source['id'])
 
@@ -741,13 +742,6 @@ def test_patching_negative_pay_returns_422(client: TestClient, field: str, new_v
         if(key not in ('id', )):
             assert body[key] == original_value
 
-    response = client.get(f'/playtests/{test_playtest['id']}')
-    assert response.status_code == 200
-    response_body = response.json()
-    for key, original_value in test_playtest.items():
-        if(key not in ('id', )):
-            assert response_body[key] == original_value
-
 def test_patched_strings_are_stripped(client: TestClient):
     test_source = helper_source_filled(client)
     test_playtest = helper_playtest(client, test_source['id'])
@@ -755,6 +749,11 @@ def test_patched_strings_are_stripped(client: TestClient):
     playtest_patched = client.patch(f'/playtests/{test_playtest['id']}', json={'game_title': '  game2  '})
     assert playtest_patched.status_code == 200
     assert playtest_patched.json()['game_title'] == 'game2'
+
+    response = client.get(f'/playtests/{test_playtest['id']}')
+    assert response.status_code == 200
+    response_body = response.json()
+    assert response_body['game_title'] == 'game2'
 
 def test_patch_id_and_created_date_are_ignored(client: TestClient):
     test_source = helper_source_filled(client)
