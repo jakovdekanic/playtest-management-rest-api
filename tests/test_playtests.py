@@ -605,7 +605,7 @@ def test_patching_new_source_id_changes_only_source_id(client: TestClient):
     assert patched_playtest.status_code == 200
     body = patched_playtest.json()
     for key, original_value in test_playtest.items():
-        if(key not in ('source_id','id')):
+        if(key not in ('source_id',)):
             assert body[key] == original_value
         else:
             assert body['source_id'] == test_source2['id']
@@ -614,7 +614,7 @@ def test_patching_new_source_id_changes_only_source_id(client: TestClient):
     assert response.status_code == 200
     response_bod = response.json()
     for key, original_value in test_playtest.items():
-        if(key not in ('source_id', 'id')):
+        if(key not in ('source_id',)):
             assert response_bod[key] == original_value
         else:
             assert response_bod['source_id'] == test_source2['id']
